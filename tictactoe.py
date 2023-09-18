@@ -1,171 +1,185 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from nltk.corpus import wordnet
-import bs4 as bs
-import warnings
-import urllib.request
-import nltk
-import random
-import string
-import re
+# MODULES
+import pygame, sys
+import numpy as np
 
-# Uncomment these below if being run for the first time
-# nltk.download('wordnet')
-# nltk.download('punkt')
+# initializes pygame
+pygame.init()
 
-# to filter warnings
-warnings.filterwarnings('ignore')
+# ---------
+# CONSTANTS
+# ---------
+WIDTH = 600
+HEIGHT = 600
+LINE_WIDTH = 15
+WIN_LINE_WIDTH = 15
+BOARD_ROWS = 3
+BOARD_COLS = 3
+SQUARE_SIZE = 200
+CIRCLE_RADIUS = 60
+CIRCLE_WIDTH = 15
+CROSS_WIDTH = 25
+SPACE = 55
+# rgb: red green blue
+RED = (255, 0, 0)
+BG_COLOR = (28, 170, 156)
+LINE_COLOR = (23, 145, 135)
+CIRCLE_COLOR = (239, 231, 200)
+CROSS_COLOR = (66, 66, 66)
 
-# getting the synonyms for the word 'hello'
-synonyms = []
-for syn in wordnet.synsets('hello'):
-    for lem in syn.lemmas():
-        lem_name = re.sub(r'\[[0-9]*\]', ' ', lem.name())
-        lem_name = re.sub(r'\s+', ' ', lem.name())
-        synonyms.append(lem_name)
+# ------
+# SCREEN
+# ------
+screen = pygame.display.set_mode( (WIDTH, HEIGHT) )
+pygame.display.set_caption( 'TIC TAC TOE' )
+screen.fill( BG_COLOR )
 
-# inputs for greeting
-greeting_inputs = ['hey', 'whats up', 'good morning', 'good evening', 'morning', 'evening', 'hello there', 'hey there']
-# concatenating the synonyms and the inputs for greeting
-greeting_inputs = greeting_inputs + synonyms
-# inputs for a normal conversation
-covo_inputs = ['how are you', 'how are you doing', 'you good']
-# greeting responses by the bot
-greeting_responses = ['Hello! How can I help you?',
-                      'Hey there! So what do you want to know?',
-                      'Hi, you can ask me anything regarding Brac.',
-                      'Hey! wanna know about Brac? Just ask away!']
-# conversation responses by the bot
-convo_responses = ['Great! what about you?', 'Getting bored at home :( wbu??', 'Not too shabby']
-# conversation replies by the user
-convo_replies = ['great', 'i am fine', 'fine', 'good', 'super', 'superb', 'super great', 'nice']
-# few limited questions and answers given as dictionary
-question_answers = {'what are you': 'I am bot, ro-bot :3',
-                    'who are you': 'I am bot, ro-bot :3',
-                    'what can you do': 'Answer questions regarding Brac!',
-                    'what do you do': 'Answer questions regarding Brac!'}
+# -------------
+# CONSOLE BOARD
+# -------------
+board = np.zeros( (BOARD_ROWS, BOARD_COLS) )
 
-# fetching raw html data about brac from wiki
-raw_data = urllib.request.urlopen('https://en.wikipedia.org/wiki/BRAC_(organisation)')
-# processing the raw html into more readable data
-raw_data = raw_data.read()
+# ---------
+# FUNCTIONS
+# ---------
+def draw_lines():
+	# 1 horizontal
+	pygame.draw.line( screen, LINE_COLOR, (0, SQUARE_SIZE), (WIDTH, SQUARE_SIZE), LINE_WIDTH )
+	# 2 horizontal
+	pygame.draw.line( screen, LINE_COLOR, (0, 2 * SQUARE_SIZE), (WIDTH, 2 * SQUARE_SIZE), LINE_WIDTH )
 
-# turning html into text
-article = bs.BeautifulSoup(raw_data, 'lxml')
+	# 1 vertical
+	pygame.draw.line( screen, LINE_COLOR, (SQUARE_SIZE, 0), (SQUARE_SIZE, HEIGHT), LINE_WIDTH )
+	# 2 vertical
+	pygame.draw.line( screen, LINE_COLOR, (2 * SQUARE_SIZE, 0), (2 * SQUARE_SIZE, HEIGHT), LINE_WIDTH )
 
-# extracting paras from the above xml and concatenating with article_text
-paragraphs = article.find_all('p')
+def draw_figures():
+	for row in range(BOARD_ROWS):
+		for col in range(BOARD_COLS):
+			if board[row][col] == 1:
+				pygame.draw.circle( screen, CIRCLE_COLOR, (int( col * SQUARE_SIZE + SQUARE_SIZE//2 ), int( row * SQUARE_SIZE + SQUARE_SIZE//2 )), CIRCLE_RADIUS, CIRCLE_WIDTH )
+			elif board[row][col] == 2:
+				pygame.draw.line( screen, CROSS_COLOR, (col * SQUARE_SIZE + SPACE, row * SQUARE_SIZE + SQUARE_SIZE - SPACE), (col * SQUARE_SIZE + SQUARE_SIZE - SPACE, row * SQUARE_SIZE + SPACE), CROSS_WIDTH )	
+				pygame.draw.line( screen, CROSS_COLOR, (col * SQUARE_SIZE + SPACE, row * SQUARE_SIZE + SPACE), (col * SQUARE_SIZE + SQUARE_SIZE - SPACE, row * SQUARE_SIZE + SQUARE_SIZE - SPACE), CROSS_WIDTH )
 
-article_text = ''
+def mark_square(row, col, player):
+	board[row][col] = player
 
-for p in paragraphs:
-    article_text += p.text
+def available_square(row, col):
+	return board[row][col] == 0
 
-article_text = article_text.lower()
+def is_board_full():
+	for row in range(BOARD_ROWS):
+		for col in range(BOARD_COLS):
+			if board[row][col] == 0:
+				return False
 
-# getting rid of all the special characters
-article_text = re.sub(r'\[[0-9]*\]', ' ', article_text)
-article_text = re.sub(r'\s+', ' ', article_text)
+	return True
 
-# extracting sentences from the article
-sentences = nltk.sent_tokenize(article_text)
-# extracting words from the article
-words = nltk.word_tokenize(article_text)
+def check_win(player):
+	# vertical win check
+	for col in range(BOARD_COLS):
+		if board[0][col] == player and board[1][col] == player and board[2][col] == player:
+			draw_vertical_winning_line(col, player)
+			return True
 
-lemma = nltk.stem.WordNetLemmatizer()
+	# horizontal win check
+	for row in range(BOARD_ROWS):
+		if board[row][0] == player and board[row][1] == player and board[row][2] == player:
+			draw_horizontal_winning_line(row, player)
+			return True
 
+	# asc diagonal win check
+	if board[2][0] == player and board[1][1] == player and board[0][2] == player:
+		draw_asc_diagonal(player)
+		return True
 
-# lemmatizing words as a part of pre-processing
-def perform_lemmatization(tokens):
-    return [lemma.lemmatize(token) for token in tokens]
+	# desc diagonal win chek
+	if board[0][0] == player and board[1][1] == player and board[2][2] == player:
+		draw_desc_diagonal(player)
+		return True
 
+	return False
 
-# removing punctuation
-remove_punctuation = dict((ord(punc), None) for punc in string.punctuation)
+def draw_vertical_winning_line(col, player):
+	posX = col * SQUARE_SIZE + SQUARE_SIZE//2
 
+	if player == 1:
+		color = CIRCLE_COLOR
+	elif player == 2:
+		color = CROSS_COLOR
 
-# method to pre-process all the tokens utilizing the above functions
-def processed_data(document):
-    return perform_lemmatization(nltk.word_tokenize(document.lower().translate(remove_punctuation)))
+	pygame.draw.line( screen, color, (posX, 15), (posX, HEIGHT - 15), LINE_WIDTH )
 
+def draw_horizontal_winning_line(row, player):
+	posY = row * SQUARE_SIZE + SQUARE_SIZE//2
 
-# function for punctuation removal
-def punc_remove(str):
-    punctuations = r'''!()-[]{};:'"\,<>./?@#$%^&*_~'''
-    no_punct = ''
+	if player == 1:
+		color = CIRCLE_COLOR
+	elif player == 2:
+		color = CROSS_COLOR
 
-    for char in str:
-        if char not in punctuations:
-            no_punct = no_punct + char
+	pygame.draw.line( screen, color, (15, posY), (WIDTH - 15, posY), WIN_LINE_WIDTH )
 
-    return no_punct
+def draw_asc_diagonal(player):
+	if player == 1:
+		color = CIRCLE_COLOR
+	elif player == 2:
+		color = CROSS_COLOR
 
+	pygame.draw.line( screen, color, (15, HEIGHT - 15), (WIDTH - 15, 15), WIN_LINE_WIDTH )
 
-# method to generate a response to greetings
-def generate_greeting_response(hello):
-    if punc_remove(hello.lower()) in greeting_inputs:
-        return random.choice(greeting_responses)
+def draw_desc_diagonal(player):
+	if player == 1:
+		color = CIRCLE_COLOR
+	elif player == 2:
+		color = CROSS_COLOR
 
+	pygame.draw.line( screen, color, (15, 15), (WIDTH - 15, HEIGHT - 15), WIN_LINE_WIDTH )
 
-# method to generate a response to conversations
-def generate_convo_response(str):
-    if punc_remove(str.lower()) in covo_inputs:
-        return random.choice(convo_responses)
+def restart():
+	screen.fill( BG_COLOR )
+	draw_lines()
+	for row in range(BOARD_ROWS):
+		for col in range(BOARD_COLS):
+			board[row][col] = 0
 
+draw_lines()
 
-# method to generate a answers to questions
-def generate_answers(str):
-    if punc_remove(str.lower()) in question_answers:
-        return question_answers[punc_remove(str.lower())]
+# ---------
+# VARIABLES
+# ---------
+player = 1
+game_over = False
 
+# --------
+# MAINLOOP
+# --------
+while True:
+	for event in pygame.event.get():
+		if event.type == pygame.QUIT:
+			sys.exit()
 
-# method to generate response to queries regarding brac
-def generate_response(user):
-    bracrobo_response = ''
-    sentences.append(user)
+		if event.type == pygame.MOUSEBUTTONDOWN and not game_over:
 
-    word_vectorizer = TfidfVectorizer(tokenizer=processed_data, stop_words='english')
-    all_word_vectors = word_vectorizer.fit_transform(sentences)
-    similar_vector_values = cosine_similarity(all_word_vectors[-1], all_word_vectors)
-    similar_sentence_number = similar_vector_values.argsort()[0][-2]
+			mouseX = event.pos[0] # x
+			mouseY = event.pos[1] # y
 
-    matched_vector = similar_vector_values.flatten()
-    matched_vector.sort()
-    vector_matched = matched_vector[-2]
+			clicked_row = int(mouseY // SQUARE_SIZE)
+			clicked_col = int(mouseX // SQUARE_SIZE)
 
-    if vector_matched is 0:
-        bracrobo_response = bracrobo_response + 'Sorry, my database doesn\'t have the response for that. Try ' \
-                                                'something different and related to Brac. '
-        return bracrobo_response
-    else:
-        bracrobo_response = bracrobo_response + sentences[similar_sentence_number]
-        return bracrobo_response
+			if available_square( clicked_row, clicked_col ):
 
+				mark_square( clicked_row, clicked_col, player )
+				if check_win( player ):
+					game_over = True
+				player = player % 2 + 1
 
-# chatting with the chatbot -->
-continue_chat = True
-print('Hi! I am BracRobo. You can ask me anything regarding Brac and I shall try my best to answer them: ')
-while continue_chat:
-    user_input = input().lower()
-    user_input = punc_remove(user_input)
-    if user_input != 'bye':
-        if user_input == 'thanks' or user_input == 'thank you very much' or user_input == 'thank you':
-            continue_chat = False
-            print('BracRobo: Not a problem! (And WELCOME! :D)')
-        elif user_input in convo_replies:
-            print('That\'s nice! How may I be of assistance?')
-            continue
-        else:
-            if generate_greeting_response(user_input) is not None:
-                print('BracRobo: ' + generate_greeting_response(user_input))
-            elif generate_convo_response(user_input) is not None:
-                print('BracRobo: ' + generate_convo_response(user_input))
-            elif generate_answers(user_input) is not None:
-                print('BracRobo: ' + generate_answers(user_input))
-            else:
-                print('BracRobo: ', end='')
-                print(generate_response(user_input))
-                sentences.remove(user_input)
-    else:
-        continue_chat = False
-        print('BracuRobo: Bye, take care, stay home and stay safe!')
+				draw_figures()
+
+		if event.type == pygame.KEYDOWN:
+			if event.key == pygame.K_r:
+				restart()
+				player = 1
+				game_over = False
+
+	pygame.display.update()
