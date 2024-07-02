@@ -1,2 +1,3 @@
-# Task1 - Chatbot With Rule-Based Responses
-A rule based chatbot which can not only carry out conversations but also answer certain questions about Brac. Extracting raw html from wiki and preprocessing the texts and using cosine similarities to produce answers.
+#TASK 01 - Implement Caesar Cipher
+
+Create a Python program that can encrypt and decrypt text using the Caesar Cipher algorithm. Allow users to input a message and a shift value to perform encryption and decryption.
